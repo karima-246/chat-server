@@ -3,8 +3,9 @@ package main
 import (
 	"bufio"
 	"flag"
-	"net"
 	"fmt"
+	"net"
+	"os"
 )
 
 type Message struct {
@@ -32,12 +33,11 @@ func handleClient(client net.Conn, clientid int, msgs chan Message) {
 }
 
 func main() {
-	// Read in the network port we should listen on, from the commandline argument.
-	// Default to port 8030
+	// Read in the network port to listen on, from the commandline argument (default port 8030)
 	portPtr := flag.String("port", ":8030", "port to listen on")
 	flag.Parse()
 
-	//TODO Create a Listener for TCP connections on the port given above.
+	ln, _ := net.Listen("tcp", *portPtr)
 
 	//Create a channel for connections
 	conns := make(chan net.Conn)
@@ -45,6 +45,7 @@ func main() {
 	msgs := make(chan Message)
 	//Create a mapping of IDs to connections
 	clients := make(map[int]net.Conn)
+	clientId := 0
 
 	//Start accepting connections
 	go acceptConns(ln, conns)
@@ -55,9 +56,24 @@ func main() {
 			// - assign a client ID
 			// - add the client to the clients map
 			// - start to asynchronously handle messages from this client
+
+			for {
+				clients[clientId] = conn
+				go handleClient(conn, clientId, msgs)
+				clientId++
+			}
+
 		case msg := <-msgs:
 			//TODO Deal with a new message
 			// Send the message to all clients that aren't the sender
+
+			reader := bufio.NewReader(os.Stdin)
+			for i, _ := range clients {
+				if i != msg.sender {
+					msg, _ := reader.ReadString('\n')
+					fmt.Fprint(msgs, msg) // ?
+				}
+			}
 		}
 	}
 }
